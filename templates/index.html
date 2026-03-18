@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autocallable Product — S&P 500 Pricing Engine</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --card: #1a1d27;
+            --border: #2a2d3a;
+            --accent: #6c63ff;
+            --accent2: #00d4aa;
+            --red: #ff4d6a;
+            --yellow: #ffc857;
+            --text: #e4e4e7;
+            --muted: #9ca3af;
+            --radius: 12px;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #1a1d27 0%, #252836 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 28px 40px;
+        }
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header p { color: var(--muted); margin-top: 4px; font-size: 0.95rem; }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px 40px;
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 30px;
+        }
+
+        /* Sidebar */
+        .sidebar { display: flex; flex-direction: column; gap: 16px; }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 22px;
+        }
+        .card h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--muted);
+            margin-bottom: 16px;
+        }
+        .field { margin-bottom: 14px; }
+        .field label {
+            display: block;
+            font-size: 0.82rem;
+            color: var(--muted);
+            margin-bottom: 5px;
+        }
+        .field input, .field select {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 9px 12px;
+            color: var(--text);
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .field input:focus, .field select:focus { border-color: var(--accent); }
+        .checkbox-field {
+            display: flex; align-items: center; gap: 8px;
+            margin-bottom: 14px;
+        }
+        .checkbox-field input[type="checkbox"] {
+            accent-color: var(--accent);
+            width: 16px; height: 16px;
+        }
+        .checkbox-field label { font-size: 0.85rem; color: var(--text); }
+        .btn-price {
+            width: 100%;
+            padding: 13px;
+            background: linear-gradient(135deg, var(--accent), #8b7cf7);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .btn-price:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(108, 99, 255, 0.35);
+        }
+        .btn-price:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+        /* Main area */
+        .main { display: flex; flex-direction: column; gap: 24px; }
+
+        /* KPI cards */
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+        }
+        .kpi {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            text-align: center;
+        }
+        .kpi .value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .kpi .label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
+        .kpi.accent .value { color: var(--accent); }
+        .kpi.green .value { color: var(--accent2); }
+        .kpi.red .value { color: var(--red); }
+        .kpi.yellow .value { color: var(--yellow); }
+
+        /* Chart grid */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .chart-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 22px;
+        }
+        .chart-card h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--muted);
+            margin-bottom: 14px;
+        }
+        .chart-card canvas { width: 100% !important; }
+        .chart-card.full { grid-column: 1 / -1; }
+
+        /* Payoff explanation */
+        .payoff-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        .payoff-table th {
+            text-align: left;
+            padding: 10px 14px;
+            background: var(--bg);
+            color: var(--muted);
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+        .payoff-table td {
+            padding: 10px 14px;
+            border-top: 1px solid var(--border);
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge.green { background: rgba(0,212,170,0.15); color: var(--accent2); }
+        .badge.yellow { background: rgba(255,200,87,0.15); color: var(--yellow); }
+        .badge.red { background: rgba(255,77,106,0.15); color: var(--red); }
+
+        /* Loading */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15,17,23,0.7);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+        .loading-overlay.active { display: flex; }
+        .spinner {
+            width: 50px; height: 50px;
+            border: 4px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .layout { grid-template-columns: 1fr; }
+            .chart-grid { grid-template-columns: 1fr; }
+            .container { padding: 16px; }
+            .header { padding: 20px 16px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading">
+    <div class="spinner"></div>
+</div>
+
+<div class="header">
+    <h1>Autocallable Pricing Engine</h1>
+    <p>Monte Carlo pricing for an autocallable structured product linked to the S&P 500</p>
+</div>
+
+<div class="container">
+    <div class="layout">
+
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="card">
+                <h3>Product Parameters</h3>
+                <div class="field">
+                    <label>S&P 500 Spot Level</label>
+                    <input type="number" id="spot" value="5700" step="50">
+                </div>
+                <div class="field">
+                    <label>Notional ($)</label>
+                    <input type="number" id="notional" value="1000" step="100">
+                </div>
+                <div class="field">
+                    <label>Maturity (years)</label>
+                    <input type="number" id="maturity_years" value="3" step="0.5" min="0.5">
+                </div>
+                <div class="field">
+                    <label>Observation Frequency</label>
+                    <select id="obs_freq">
+                        <option value="1">Annual</option>
+                        <option value="2">Semi-Annual</option>
+                        <option value="4" selected>Quarterly</option>
+                        <option value="12">Monthly</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Autocall Barrier (%)</label>
+                    <input type="number" id="autocall_barrier" value="100" step="5" min="50" max="150">
+                </div>
+                <div class="field">
+                    <label>Coupon Barrier (%)</label>
+                    <input type="number" id="coupon_barrier" value="70" step="5" min="30" max="100">
+                </div>
+                <div class="field">
+                    <label>Put / Knock-In Barrier (%)</label>
+                    <input type="number" id="put_barrier" value="60" step="5" min="20" max="100">
+                </div>
+                <div class="field">
+                    <label>Coupon Rate (% per period)</label>
+                    <input type="number" id="coupon_rate" value="8" step="0.5" min="0">
+                </div>
+                <div class="checkbox-field">
+                    <input type="checkbox" id="memory_coupon" checked>
+                    <label for="memory_coupon">Memory Coupon</label>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Market Data</h3>
+                <div class="field">
+                    <label>Risk-Free Rate (%)</label>
+                    <input type="number" id="risk_free_rate" value="4" step="0.25">
+                </div>
+                <div class="field">
+                    <label>Dividend Yield (%)</label>
+                    <input type="number" id="dividend_yield" value="1.5" step="0.25">
+                </div>
+                <div class="field">
+                    <label>Volatility (%)</label>
+                    <input type="number" id="volatility" value="18" step="1" min="5" max="80">
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Simulation</h3>
+                <div class="field">
+                    <label>Monte Carlo Paths</label>
+                    <select id="n_paths">
+                        <option value="50000">50,000 (fast)</option>
+                        <option value="100000" selected>100,000</option>
+                        <option value="200000">200,000 (precise)</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="btn-price" id="btnPrice" onclick="runPricing()">Run Pricing</button>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="main" id="mainContent">
+
+            <!-- KPI row -->
+            <div class="kpi-row">
+                <div class="kpi accent">
+                    <div class="value" id="kpi-price">—</div>
+                    <div class="label">Fair Value ($)</div>
+                </div>
+                <div class="kpi green">
+                    <div class="value" id="kpi-pct">—</div>
+                    <div class="label">% of Notional</div>
+                </div>
+                <div class="kpi yellow">
+                    <div class="value" id="kpi-autocall">—</div>
+                    <div class="label">Autocall Prob</div>
+                </div>
+                <div class="kpi red">
+                    <div class="value" id="kpi-knockin">—</div>
+                    <div class="label">Knock-In Prob</div>
+                </div>
+                <div class="kpi">
+                    <div class="value" id="kpi-life">—</div>
+                    <div class="label">Avg Life (yrs)</div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="chart-grid">
+                <div class="chart-card full">
+                    <h3>Simulated S&P 500 Paths with Barriers</h3>
+                    <canvas id="chartPaths" height="90"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>Autocall Events by Observation</h3>
+                    <canvas id="chartAutocall" height="140"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>Payoff Distribution</h3>
+                    <canvas id="chartPayoff" height="140"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>Price vs Volatility</h3>
+                    <canvas id="chartVol" height="140"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>Autocall & Knock-In vs Volatility</h3>
+                    <canvas id="chartVolProb" height="140"></canvas>
+                </div>
+            </div>
+
+            <!-- Payoff structure table -->
+            <div class="card">
+                <h3>Payoff Structure</h3>
+                <table class="payoff-table">
+                    <thead>
+                        <tr>
+                            <th>Scenario</th>
+                            <th>Condition</th>
+                            <th>Payoff</th>
+                            <th>Outcome</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Early Autocall</td>
+                            <td>Spot &ge; Autocall Barrier on any observation date</td>
+                            <td>Notional + Coupon(s)</td>
+                            <td><span class="badge green">Positive</span></td>
+                        </tr>
+                        <tr>
+                            <td>Maturity — Above Coupon</td>
+                            <td>Not autocalled, final spot &ge; Coupon Barrier</td>
+                            <td>Notional + Final Coupon</td>
+                            <td><span class="badge green">Positive</span></td>
+                        </tr>
+                        <tr>
+                            <td>Maturity — Protected</td>
+                            <td>Not autocalled, no knock-in triggered</td>
+                            <td>Notional (capital protected)</td>
+                            <td><span class="badge yellow">Neutral</span></td>
+                        </tr>
+                        <tr>
+                            <td>Maturity — Knock-In Loss</td>
+                            <td>Spot breached KI barrier &amp; final spot &lt; strike</td>
+                            <td>Notional &times; (Final / Strike)</td>
+                            <td><span class="badge red">Negative</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    const chartDefaults = {
+        color: '#9ca3af',
+        borderColor: '#2a2d3a',
+    };
+    Chart.defaults.color = chartDefaults.color;
+    Chart.defaults.borderColor = chartDefaults.borderColor;
+
+    let charts = {};
+
+    function destroyCharts() {
+        Object.values(charts).forEach(c => c.destroy());
+        charts = {};
+    }
+
+    function getParams() {
+        return {
+            spot: +document.getElementById('spot').value,
+            strike: +document.getElementById('spot').value,
+            notional: +document.getElementById('notional').value,
+            maturity_years: +document.getElementById('maturity_years').value,
+            obs_freq: +document.getElementById('obs_freq').value,
+            autocall_barrier: +document.getElementById('autocall_barrier').value / 100,
+            coupon_barrier: +document.getElementById('coupon_barrier').value / 100,
+            put_barrier: +document.getElementById('put_barrier').value / 100,
+            coupon_rate: +document.getElementById('coupon_rate').value / 100,
+            memory_coupon: document.getElementById('memory_coupon').checked,
+            risk_free_rate: +document.getElementById('risk_free_rate').value / 100,
+            dividend_yield: +document.getElementById('dividend_yield').value / 100,
+            volatility: +document.getElementById('volatility').value / 100,
+            n_paths: +document.getElementById('n_paths').value,
+        };
+    }
+
+    async function runPricing() {
+        const btn = document.getElementById('btnPrice');
+        const loader = document.getElementById('loading');
+        btn.disabled = true;
+        btn.textContent = 'Computing...';
+        loader.classList.add('active');
+
+        try {
+            const resp = await fetch('/api/price', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(getParams()),
+            });
+            const data = await resp.json();
+            renderResults(data);
+        } catch(e) {
+            alert('Error: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Run Pricing';
+            loader.classList.remove('active');
+        }
+    }
+
+    function renderResults(data) {
+        const r = data.results;
+        document.getElementById('kpi-price').textContent = '$' + r.price.toLocaleString();
+        document.getElementById('kpi-pct').textContent = r.price_pct + '%';
+        document.getElementById('kpi-autocall').textContent = r.autocall_prob + '%';
+        document.getElementById('kpi-knockin').textContent = r.knockin_prob + '%';
+        document.getElementById('kpi-life').textContent = r.avg_life + 'y';
+
+        destroyCharts();
+
+        // Sample paths chart
+        const sp = data.sample_paths;
+        const p = data.params;
+        const pathColors = ['#6c63ff','#00d4aa','#ff4d6a','#ffc857','#a78bfa','#34d399','#f97316','#60a5fa'];
+        const pathDatasets = sp.paths.map((path, i) => ({
+            label: 'Path ' + (i+1),
+            data: sp.times.map((t, j) => ({x: t, y: path[j]})),
+            borderColor: pathColors[i % pathColors.length],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            tension: 0.1,
+        }));
+        // Barrier lines
+        const tMax = sp.times[sp.times.length-1];
+        pathDatasets.push({
+            label: 'Autocall (' + (p.autocall_barrier*100) + '%)',
+            data: [{x:0,y:p.strike*p.autocall_barrier},{x:tMax,y:p.strike*p.autocall_barrier}],
+            borderColor: '#00d4aa',
+            borderWidth: 2,
+            borderDash: [8,4],
+            pointRadius: 0,
+        });
+        pathDatasets.push({
+            label: 'Coupon (' + (p.coupon_barrier*100) + '%)',
+            data: [{x:0,y:p.strike*p.coupon_barrier},{x:tMax,y:p.strike*p.coupon_barrier}],
+            borderColor: '#ffc857',
+            borderWidth: 2,
+            borderDash: [8,4],
+            pointRadius: 0,
+        });
+        pathDatasets.push({
+            label: 'Knock-In (' + (p.put_barrier*100) + '%)',
+            data: [{x:0,y:p.strike*p.put_barrier},{x:tMax,y:p.strike*p.put_barrier}],
+            borderColor: '#ff4d6a',
+            borderWidth: 2,
+            borderDash: [8,4],
+            pointRadius: 0,
+        });
+
+        charts.paths = new Chart(document.getElementById('chartPaths'), {
+            type: 'line',
+            data: { datasets: pathDatasets },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { type: 'linear', title: { display: true, text: 'Time (years)' } },
+                    y: { title: { display: true, text: 'S&P 500 Level' } },
+                },
+                plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+            }
+        });
+
+        // Autocall bar chart
+        const nPaths = +document.getElementById('n_paths').value;
+        charts.autocall = new Chart(document.getElementById('chartAutocall'), {
+            type: 'bar',
+            data: {
+                labels: r.obs_labels,
+                datasets: [{
+                    label: 'Autocalled (%)',
+                    data: r.autocall_counts.map(c => +(c / nPaths * 100).toFixed(1)),
+                    backgroundColor: '#6c63ff',
+                    borderRadius: 6,
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true, title: { display: true, text: '% of paths' } } },
+                plugins: { legend: { display: false } },
+            }
+        });
+
+        // Payoff distribution (doughnut)
+        const pb = r.payoff_buckets;
+        charts.payoff = new Chart(document.getElementById('chartPayoff'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Capital Loss', 'Principal Only', 'With Coupon'],
+                datasets: [{
+                    data: [pb.capital_loss, pb.principal_only, pb.with_coupon],
+                    backgroundColor: ['#ff4d6a', '#ffc857', '#00d4aa'],
+                    borderWidth: 0,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 16, font: { size: 12 } } },
+                },
+            }
+        });
+
+        // Vol sensitivity - price
+        const vs = data.vol_sensitivity;
+        charts.vol = new Chart(document.getElementById('chartVol'), {
+            type: 'line',
+            data: {
+                labels: vs.vols,
+                datasets: [{
+                    label: 'Price (% Notional)',
+                    data: vs.prices,
+                    borderColor: '#6c63ff',
+                    backgroundColor: 'rgba(108,99,255,0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#6c63ff',
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { title: { display: true, text: '% Notional' } } },
+                plugins: { legend: { display: false } },
+            }
+        });
+
+        // Vol sensitivity - probabilities
+        charts.volProb = new Chart(document.getElementById('chartVolProb'), {
+            type: 'line',
+            data: {
+                labels: vs.vols,
+                datasets: [
+                    {
+                        label: 'Autocall %',
+                        data: vs.autocalls,
+                        borderColor: '#00d4aa',
+                        tension: 0.3,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#00d4aa',
+                    },
+                    {
+                        label: 'Knock-In %',
+                        data: vs.knockins,
+                        borderColor: '#ff4d6a',
+                        tension: 0.3,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#ff4d6a',
+                    },
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true, title: { display: true, text: '%' } } },
+                plugins: { legend: { position: 'top', labels: { boxWidth: 12 } } },
+            }
+        });
+    }
+
+    // Auto-run on load
+    window.addEventListener('DOMContentLoaded', () => { runPricing(); });
+</script>
+
+</body>
+</html>
