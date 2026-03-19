@@ -41,9 +41,9 @@ def simulate_paths(market, spot, maturity, n_steps, n_paths, seed=42):
     return spot * np.exp(log_paths)
 
 
-def price_autocallable(ac, market, n_paths=100_000, seed=42):
+def price_autocallable(ac, market, n_paths=30_000, seed=42):
     n_obs = int(ac.maturity_years * ac.obs_freq)
-    total_steps = int(ac.maturity_years * 252)
+    total_steps = int(ac.maturity_years * 52)  # weekly steps to save memory
     paths = simulate_paths(market, ac.spot, ac.maturity_years, total_steps, n_paths, seed)
 
     obs_indices = [int(round(i * total_steps / n_obs)) for i in range(1, n_obs + 1)]
@@ -129,8 +129,8 @@ def price_autocallable(ac, market, n_paths=100_000, seed=42):
     }
 
 
-def vol_sensitivity(ac, market, n_paths=50_000):
-    vols = [0.10, 0.12, 0.15, 0.18, 0.20, 0.22, 0.25, 0.28, 0.30, 0.35]
+def vol_sensitivity(ac, market, n_paths=15_000):
+    vols = [0.10, 0.15, 0.18, 0.20, 0.25, 0.30, 0.35]
     prices, autocalls, knockins = [], [], []
     for v in vols:
         m = MarketParams(market.risk_free_rate, market.dividend_yield, v)
@@ -146,7 +146,7 @@ def vol_sensitivity(ac, market, n_paths=50_000):
     }
 
 
-def spot_sensitivity(ac, market, n_paths=50_000):
+def spot_sensitivity(ac, market, n_paths=15_000):
     offsets = [-30, -20, -15, -10, -5, 0, 5, 10, 15, 20, 30]
     labels, prices, autocalls = [], [], []
     for pct in offsets:
@@ -165,8 +165,8 @@ def spot_sensitivity(ac, market, n_paths=50_000):
     return {"labels": labels, "prices": prices, "autocalls": autocalls}
 
 
-def generate_sample_paths(market, spot, maturity, n_paths=8, seed=99):
-    total_steps = int(maturity * 252)
+def generate_sample_paths(market, spot, maturity, n_paths=6, seed=99):
+    total_steps = int(maturity * 52)
     paths = simulate_paths(market, spot, maturity, total_steps, n_paths, seed)
     # Downsample to ~50 points for chart
     step = max(1, total_steps // 50)
